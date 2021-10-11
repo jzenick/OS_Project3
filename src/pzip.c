@@ -33,17 +33,17 @@ void zip_chars(int start, int end, char *input_chars, int *char_frequency, struc
 	struct zipped_char *temp = malloc(len);
 	z_chars = temp;
 	//unlock
-	z_chars[start].character = input_chars[start];
-	z_chars[start].occurence = 1;
+	zipped_chars[start].character = input_chars[start];
+	zipped_chars[start].occurence = 1;
 
 	for(int i = start+1; i < end; i++){
 		if(input_chars[i] == input_chars[i-1]){
-			z_chars[zc_count].occurence++;
+			zipped_chars[zc_count].occurence++;
 		}
 		else{
 			zc_count++;
-			z_chars[zc_count].character = input_chars[i];
-			z_chars[zc_count].occurence = 1;
+			zipped_chars[zc_count].character = input_chars[i];
+			zipped_chars[zc_count].occurence = 1;
 		}
 		//lock
 		char_frequency[input_chars[i]-97]++;
@@ -51,6 +51,10 @@ void zip_chars(int start, int end, char *input_chars, int *char_frequency, struc
 	}
 	printf("finished");
 	//z_chars = realloc(z_chars, zc_count+1);
+
+	*zipped_chars_count = zc_count+1;
+
+	free(z_chars);
 	
 }
 
