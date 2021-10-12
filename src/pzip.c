@@ -89,8 +89,6 @@ void *zip_chars(void *args_){
 		g_zipped_chars[offset+i] = z_chars[i];
 	}
 
-	printf("%d\n", zc_count);
-
 	free(z_chars);
 
 	return NULL;
