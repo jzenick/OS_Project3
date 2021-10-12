@@ -7,7 +7,6 @@
 #include "pzip.h"
 
 pthread_mutex_t l;
-
 pthread_barrier_t b;
 
 int *g_char_frequency;
@@ -21,11 +20,8 @@ typedef struct{
 	int sz;
 
 	char *input_chars;
-	//int *char_frequency;
-	//struct zipped_char *zipped_chars;
 	int *offsets;
 	pthread_t *threads;
-	//int *zipped_chars_count;
 
 } arg_st;
 
@@ -47,16 +43,23 @@ void *zip_chars(void *args);
  *
  */
 void *zip_chars(void *args_){
+	//initialize necessary local variables
 	arg_st *args = (arg_st *)args_;
 	int len = args->sz;
 	int zc_count = 0;
 	int offset = 0;
-	
-	struct zipped_char *z_chars = malloc(len);
+	struct zipped_char *z_chars = malloc(sizeof(struct zipped_char) * len);
 
+	if( z_chars == NULL ){
+		fprintf(stderr, "malloc failed");
+		exit(1);
+	}
+
+	//take care of first values
 	z_chars[zc_count].character = args->input_chars[args->start];
 	z_chars[zc_count].occurence = 1;
 
+	//loop through the threads section of the input
 	for(int i = args->start+1; i < args->end; i++){
 		if(args->input_chars[i] == args->input_chars[i-1]){
 			z_chars[zc_count].occurence++;
@@ -70,47 +73,55 @@ void *zip_chars(void *args_){
 
 	zc_count++;
 
+	//set offset and shared globals
 	pthread_mutex_lock(&l);
+
 	args->offsets[args->id] = zc_count;
 	for(int i = 0; i < zc_count; i++){
-		g_char_frequency[z_chars[i].character -97] += z_chars[i].occurence;
+		g_char_frequency[z_chars[i].character - 97] += z_chars[i].occurence;
 	}
 	*g_zipped_chars_count += zc_count;
 	
 	pthread_mutex_unlock(&l);
-	
 	pthread_barrier_wait(&b);
 
+	//use offsets to set this thread's section
 	for(int i = 0; i < args->id; i++){
 		offset += args->offsets[i];
 	}
-
 	for(int i = 0; i < zc_count; i++){
 		g_zipped_chars[offset+i] = z_chars[i];
 	}
 
 	free(z_chars);
-
 	return NULL;
-	
 }
 
 void pzip(int n_threads, char *input_chars, int input_chars_size,
 	  struct zipped_char *zipped_chars, int *zipped_chars_count,
 	  int *char_frequency)
 {
-	pthread_mutex_init(&l, 0);
-	pthread_barrier_init(&b, NULL, n_threads);
+	//initialize barrier and mutex
+	if(pthread_mutex_init(&l, 0) != 0){
+		fprintf(stderr, "mutex error");
+		exit(1);
+	}
+	if(pthread_barrier_init(&b, NULL, n_threads) != 0){
+		fprintf(stderr, "barrier error");
+		exit(1);
+	}
+	//create important argument variables
 	int offsets[n_threads];
 	arg_st a[n_threads];
 	pthread_t threads[n_threads];
+	int sz = input_chars_size/n_threads;
 
+	//set global variables to necessary pointers
 	g_char_frequency = char_frequency;
 	g_zipped_chars = zipped_chars;
 	g_zipped_chars_count = zipped_chars_count;
 
-	int sz = input_chars_size/n_threads;
-
+	//loop to set each argument and start threads
 	for(int i = 0; i < n_threads; i++){
 		a[i].id = i;
 		a[i].input_chars = input_chars;
@@ -119,39 +130,19 @@ void pzip(int n_threads, char *input_chars, int input_chars_size,
 		a[i].sz = sz;
 		a[i].start = i * sz;
 		a[i].end = ((i+1) * sz);
-		pthread_create(&threads[i], NULL, zip_chars, (void *)&a[i]);
+		if( pthread_create(&threads[i], NULL, zip_chars, (void *)&a[i]) != 0){
+			fprintf(stderr, "pthread_create error");
+			exit(1);
+		}
 	}
 
+	//wait for the threads and destroy the barrier
 	for(int i = 0; i < n_threads; i++){
 		pthread_join(threads[i], NULL);
 	}
 
-	pthread_barrier_destroy(&b);
-
-	
-
-	/*
-	int zc_count = 0;
-	zipped_chars[zc_count].character = input_chars[0];
-	zipped_chars[zc_count].occurence = 1;
-	//lock
-	char_frequency[input_chars[0]-97]++;
-	//unlock
-
-	for(int i = 1; i < input_chars_size; i++){
-		if(input_chars[i] == input_chars[i-1]){
-			zipped_chars[zc_count].occurence++;
-		}
-		else{
-			zc_count++;
-			zipped_chars[zc_count].character = input_chars[i];
-			zipped_chars[zc_count].occurence = 1;
-		}
-		//lock
-		char_frequency[input_chars[i]-97]++;
-		//unlock
+	if( pthread_barrier_destroy(&b) != 0){
+		fprintf(stderr, "barrier error");
+		exit(1);
 	}
-	*zipped_chars_count = zc_count+1;
-	*/
-	
 }
